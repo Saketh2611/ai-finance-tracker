@@ -430,6 +430,69 @@ const styles = `
     font-weight: 600;
     color: #e8f0ee;
   }
+
+  /* ✨ AI STYLES ✨ */
+  .btn-ai {
+    width: 100%;
+    background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+    border: none;
+    border-radius: 9px;
+    padding: 12px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: #ffffff;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  }
+
+  .btn-ai:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4); }
+
+  .ai-result-box {
+    background: rgba(167, 139, 250, 0.05);
+    border: 1px solid rgba(167, 139, 250, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #d8b4fe;
+    
+    /* SCROLLBAR ADDED SO IT DOESNT OVERFLOW THE SCREEN */
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  /* Scrollbar for AI Box */
+  .ai-result-box::-webkit-scrollbar { width: 5px; }
+  .ai-result-box::-webkit-scrollbar-track { background: transparent; }
+  .ai-result-box::-webkit-scrollbar-thumb { background: rgba(167, 139, 250, 0.3); border-radius: 10px; }
+
+  /* Formatted Markdown Styles */
+  .ai-result-box h4 {
+    color: #f3e8ff;
+    font-size: 15px;
+    margin: 16px 0 8px 0;
+    font-family: 'Syne', sans-serif;
+    border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+    padding-bottom: 4px;
+  }
+  .ai-result-box h4:first-child { margin-top: 0; }
+  .ai-result-box p { margin: 0 0 10px 0; }
+  .ai-result-box strong { color: #ffffff; font-weight: 600; }
+  .ai-result-box ul, .ai-result-box ol { margin: 0 0 12px 0; padding-left: 20px; }
+  .ai-result-box li { margin-bottom: 6px; }
+
+  .ai-loading {
+    text-align: center;
+    color: #a78bfa;
+    font-size: 13px;
+    padding: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
 `;
 
 const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string }> = {
@@ -441,19 +504,23 @@ const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string 
 };
 
 export default function Dashboard() {
+  // ✅ FIXED: Added <any[]> to state
   const [expenses, setExpenses] = useState<any[]>([]);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Food");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState(""); // ✅ added
+  const [userName, setUserName] = useState("");
+  
+  const [aiSummary, setAiSummary] = useState("");
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/"); return; }
 
-    // ✅ Decode JWT payload (base64) — no extra API call needed
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setUserName(payload.name || payload.email || "User");
@@ -475,6 +542,7 @@ export default function Dashboard() {
     }
   };
 
+  // ✅ FIXED: Added ': any' to the event argument
   const handleAddExpense = async (e: any) => {
     e.preventDefault();
     try {
@@ -492,26 +560,78 @@ export default function Dashboard() {
     navigate("/");
   };
 
-  // Derived stats
-  const total = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const thisMonth = expenses.filter(e => {
+  const handleGenerateSummary = async () => {
+    setIsGeneratingAI(true);
+    setAiSummary("");
+    try {
+      const now = new Date();
+      const month = now.getMonth() + 1; 
+      const year = now.getFullYear();
+
+      const res = await API.get(`/expenses/summary?month=${month}&year=${year}`);
+      setAiSummary(res.data.summary);
+    } catch (err) {
+      console.error("Error fetching AI summary", err);
+      setAiSummary("Unable to generate summary right now. Please try again later.");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // ✅ FIXED: Added ': string' to text argument
+  const renderFormattedAI = (text: string) => {
+    if (!text) return null;
+    let cleanText = text.replace(/---/g, ''); 
+
+    return cleanText.split('\n').map((line, index) => {
+      const trimmed = line.trim();
+      if (!trimmed) return null;
+
+      if (trimmed.startsWith('###')) {
+        return <h4 key={index}>{trimmed.replace(/###/g, '').trim()}</h4>;
+      }
+      if (trimmed.startsWith('##')) {
+        return <h4 key={index}>{trimmed.replace(/##/g, '').trim()}</h4>;
+      }
+
+      const renderBold = (str: string) => {
+        return str.split(/(\*\*.*?\*\*)/g).map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i}>{part.slice(2, -2)}</strong>;
+          }
+          return part;
+        });
+      };
+
+      if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+        return <li key={index} style={{ listStyleType: 'disc', marginLeft: 20 }}>{renderBold(trimmed.substring(2))}</li>;
+      }
+      if (/^\d+\./.test(trimmed)) {
+        return <li key={index} style={{ listStyleType: 'decimal', marginLeft: 20 }}>{renderBold(trimmed.replace(/^\d+\./, '').trim())}</li>;
+      }
+
+      return <p key={index}>{renderBold(trimmed)}</p>;
+    });
+  };
+
+  // ✅ FIXED: Explicitly defined 'e' as any in the array methods
+  const total = expenses.reduce((sum, e: any) => sum + e.amount, 0);
+  const thisMonth = expenses.filter((e: any) => {
     const d = new Date(e.date);
     const now = new Date();
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).reduce((sum, e) => sum + e.amount, 0);
+  }).reduce((sum, e: any) => sum + e.amount, 0);
 
+  // ✅ FIXED: Defined byCat as a Record of numbers
   const byCat: Record<string, number> = {};
-  expenses.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
+  expenses.forEach((e: any) => { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
   const maxCat = Math.max(...Object.values(byCat), 1);
-
   const categories = ["Food", "Travel", "Shopping", "Bills", "Other"];
 
   return (
     <>
       <style>{styles}</style>
       <div className="dash-root">
-
-        {/* NAV */}
         <nav className="dash-nav">
           <div className="nav-logo">
             <div className="nav-logo-icon">💰</div>
@@ -528,22 +648,19 @@ export default function Dashboard() {
               }}>
                 {userName.charAt(0).toUpperCase()}
               </div>
-              <span className="nav-badge">{userName}</span>
+              <span className="nav-badge" style={{ display: window.innerWidth < 600 ? 'none' : 'block' }}>{userName}</span>
             </div>
             <button className="btn-logout" onClick={handleLogout}>Logout</button>
           </div>
         </nav>
 
         <main className="dash-main">
-
-          {/* HEADER */}
           <div className="dash-header">
             <span className="star">✦</span>
             <h1 className="dash-title">Hey, {userName.split(" ")[0]} 👋</h1>
             <p className="dash-subtitle">Track, categorize, and understand your spending</p>
           </div>
 
-          {/* STAT CARDS */}
           <div className="stat-grid">
             <div className="stat-card">
               <div className="stat-label">Total Spent</div>
@@ -567,10 +684,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* MAIN GRID */}
           <div className="content-grid">
-
-            {/* LEFT: Expense List */}
             <div>
               <div className="card">
                 <div className="card-header">
@@ -589,7 +703,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="expense-list">
-                    {[...expenses].reverse().map((exp) => {
+                    {[...expenses].reverse().map((exp: any) => {
                       const conf = CATEGORY_CONFIG[exp.category] || CATEGORY_CONFIG.Other;
                       return (
                         <div className="expense-item" key={exp._id}>
@@ -612,10 +726,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* RIGHT: Add Form + Charts */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-              {/* Add Expense */}
               <div className="card">
                 <div className="card-header">
                   <div className="card-title">
@@ -626,91 +737,52 @@ export default function Dashboard() {
                   <div className="add-form">
                     <div>
                       <label className="field-label">Amount (₹)</label>
-                      <input
-                        className="field-input"
-                        type="number"
-                        placeholder="0"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        required
-                      />
+                      <input className="field-input" type="number" placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} required />
                     </div>
                     <div>
                       <label className="field-label">Category</label>
-                      <select
-                        className="field-select"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                      >
+                      <select className="field-select" value={category} onChange={(e) => setCategory(e.target.value)}>
                         {categories.map(c => <option key={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className="full">
                       <label className="field-label">Description</label>
-                      <input
-                        className="field-input"
-                        type="text"
-                        placeholder="What was this for?"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                      />
+                      <input className="field-input" type="text" placeholder="What was this for?" value={description} onChange={(e) => setDescription(e.target.value)} />
                     </div>
                     <button className="btn-add" type="submit">+ Add Expense</button>
                   </div>
                 </form>
               </div>
 
-              {/* Spending by Category Chart */}
-              <div className="card">
+              <div className="card" style={{ borderColor: 'rgba(167, 139, 250, 0.3)' }}>
                 <div className="card-header">
-                  <div className="card-title">
-                    <span className="star-sm">✦</span> Spending by Category
+                  <div className="card-title" style={{ color: '#d8b4fe' }}>
+                    <span className="star-sm" style={{ color: '#a78bfa' }}>✨</span> AI Financial Insights
                   </div>
                 </div>
-                <div className="bar-chart">
-                  {categories.map(cat => {
-                    const val = byCat[cat] || 0;
-                    const conf = CATEGORY_CONFIG[cat];
-                    const pct = (val / maxCat) * 100;
-                    return (
-                      <div className="bar-group" key={cat}>
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${Math.max(pct, 4)}%`,
-                            background: `linear-gradient(180deg, ${conf.color}, ${conf.color}99)`,
-                          }}
-                          title={`${cat}: ₹${val}`}
-                        />
-                        <span className="bar-label">{cat.slice(0, 4)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Expense Summary */}
-                <div style={{ marginTop: 20, borderTop: '1px solid rgba(61,207,182,0.08)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 12, color: '#7a9e95', fontWeight: 500, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 12 }}>Expense Summary</div>
-                  <div className="summary-list">
-                    {categories.filter(c => byCat[c]).map(cat => {
-                      const conf = CATEGORY_CONFIG[cat];
-                      return (
-                        <div className="summary-row" key={cat}>
-                          <div className="summary-left">
-                            <div className="cat-dot" style={{ background: conf.color }} />
-                            {cat}
-                          </div>
-                          <div className="summary-amount">₹{(byCat[cat] || 0).toLocaleString()}</div>
-                        </div>
-                      );
-                    })}
-                    {Object.keys(byCat).length === 0 && (
-                      <div style={{ fontSize: 13, color: '#7a9e95', textAlign: 'center', padding: '8px 0' }}>No data yet</div>
-                    )}
+                
+                {!aiSummary && !isGeneratingAI ? (
+                  <button className="btn-ai" onClick={handleGenerateSummary}>
+                    Generate Monthly Summary
+                  </button>
+                ) : isGeneratingAI ? (
+                  <div className="ai-loading">
+                    <span className="star" style={{ animation: 'spin 2s linear infinite' }}>✦</span> Analyzing your spending...
                   </div>
-                </div>
+                ) : (
+                  <div className="ai-result-box">
+                    {renderFormattedAI(aiSummary)}
+                  </div>
+                )}
+                
+                {aiSummary && !isGeneratingAI && (
+                  <div style={{ marginTop: 12, textAlign: 'right' }}>
+                    <button onClick={handleGenerateSummary} style={{ background: 'transparent', border: 'none', color: '#a78bfa', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                      Regenerate
+                    </button>
+                  </div>
+                )}
               </div>
-
             </div>
           </div>
         </main>
