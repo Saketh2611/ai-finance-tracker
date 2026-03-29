@@ -1,18 +1,85 @@
-import { SignUp } from '@clerk/clerk-react'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import API from "../../Services/api";
 
 export default function SignupPage() {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 20px' }}>
-      <SignUp
-        routing="path"          // use /signup path-based routing
-        path="/signup"
-        signInUrl="/login"   // link to your login page
-        afterSignUpUrl="/dashboard"  // redirect after signup
-      />
-    </div>
-  )
-}
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-// Similarly for signup:
-// import { SignUp } from '@clerk/clerk-react'
-// <SignUp routing="path" path="/signup" signInUrl="/login" afterSignUpUrl="/dashboard" />
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // 🔥 Call your backend register API
+      await API.post("/auth/register", {
+        name,
+        email,
+        password,
+      });
+
+      alert("Signup successful! Please login.");
+
+      // ✅ Redirect to login
+      navigate("/");
+
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Signup failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <h1>Sign up</h1>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      <input
+        type="text"
+        placeholder="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+      />
+
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
+
+      <button type="submit" disabled={loading}>
+        {loading ? "Signing up..." : "Sign up"}
+      </button>
+
+      <p>
+        Already have an account?{" "}
+        <span
+          style={{ color: "blue", cursor: "pointer" }}
+          onClick={() => navigate("/")}
+        >
+          Login
+        </span>
+      </p>
+    </form>
+  );
+}

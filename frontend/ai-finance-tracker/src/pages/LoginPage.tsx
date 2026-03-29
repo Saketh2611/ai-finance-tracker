@@ -1,51 +1,46 @@
-import { useState } from 'react'
-import { useSignIn } from '@clerk/clerk-react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import API from "../../Services/api.ts";
 
 export default function LoginPage() {
-  const { isLoaded, signIn, setActive } = useSignIn()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e:any) => {
-    e.preventDefault()
+  const navigate = useNavigate();
 
-    if (!isLoaded) return
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
 
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
 
     try {
-      // Attempt sign in — Clerk handles credential verification
-      const result = await signIn.create({
-        identifier: email,
+      // 🔥 Call your backend
+      const res = await API.post("/auth/login", {
+        email,
         password,
-      })
+      });
 
-      if (result.status === 'complete') {
-        // Set the active session in Clerk
-        await setActive({ session: result.createdSessionId })
-        navigate('/dashboard')
-      } else {
-        // Needs further verification (e.g. MFA) — handle if needed
-        console.log('Sign-in needs more steps:', result.status)
-      }
+      // ✅ Store JWT token
+      localStorage.setItem("token", res.data.token);
+
+      // ✅ Redirect
+      navigate("/dashboard");
+
     } catch (err: any) {
-      // Clerk error objects have a .errors array
-      setError(err.errors?.[0]?.message || 'Sign in failed')
+      setError(err?.response?.data?.message || "Login failed");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit}>
       <h1>Sign in</h1>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
       <input
         type="email"
@@ -63,9 +58,9 @@ export default function LoginPage() {
         required
       />
 
-      <button type="submit" disabled={loading || !isLoaded}>
-        {loading ? 'Signing in...' : 'Sign in'}
+      <button type="submit" disabled={loading}>
+        {loading ? "Signing in..." : "Sign in"}
       </button>
     </form>
-  )
+  );
 }
