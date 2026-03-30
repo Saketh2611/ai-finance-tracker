@@ -504,7 +504,6 @@ const CATEGORY_CONFIG: Record<string, { icon: string; color: string; bg: string 
 };
 
 export default function Dashboard() {
-  // ✅ FIXED: Added <any[]> to state
   const [expenses, setExpenses] = useState<any[]>([]);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Food");
@@ -542,7 +541,6 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ FIXED: Added ': any' to the event argument
   const handleAddExpense = async (e: any) => {
     e.preventDefault();
     try {
@@ -578,7 +576,6 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ FIXED: Added ': string' to text argument
   const renderFormattedAI = (text: string) => {
     if (!text) return null;
     let cleanText = text.replace(/---/g, ''); 
@@ -614,7 +611,6 @@ export default function Dashboard() {
     });
   };
 
-  // ✅ FIXED: Explicitly defined 'e' as any in the array methods
   const total = expenses.reduce((sum, e: any) => sum + e.amount, 0);
   const thisMonth = expenses.filter((e: any) => {
     const d = new Date(e.date);
@@ -622,7 +618,6 @@ export default function Dashboard() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).reduce((sum, e: any) => sum + e.amount, 0);
 
-  // ✅ FIXED: Defined byCat as a Record of numbers
   const byCat: Record<string, number> = {};
   expenses.forEach((e: any) => { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
   const maxCat = Math.max(...Object.values(byCat), 1);
@@ -683,6 +678,47 @@ export default function Dashboard() {
               <div className="stat-change">Active buckets</div>
             </div>
           </div>
+
+          {/* ── BAR CHART CARD ── */}
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-header">
+              <div className="card-title">
+                <span className="star-sm">✦</span> Spending by Category
+              </div>
+              <span style={{ fontSize: 12, color: '#7a9e95' }}>All time</span>
+            </div>
+            {Object.keys(byCat).length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📊</div>
+                No data yet
+              </div>
+            ) : (
+              <div className="bar-chart">
+                {categories.map((cat) => {
+                  const val = byCat[cat] || 0;
+                  const heightPct = (val / maxCat) * 100;
+                  const conf = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.Other;
+                  return (
+                    <div className="bar-group" key={cat} title={`₹${val.toLocaleString()}`}>
+                      <span style={{ fontSize: 10, color: '#7a9e95', marginBottom: 2 }}>
+                        {val > 0 ? `₹${val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val}` : ''}
+                      </span>
+                      <div
+                        className="bar"
+                        style={{
+                          height: `${Math.max(heightPct, val > 0 ? 8 : 0)}%`,
+                          background: conf.color,
+                          opacity: val > 0 ? 1 : 0.15,
+                        }}
+                      />
+                      <span className="bar-label">{cat}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {/* ── END BAR CHART CARD ── */}
 
           <div className="content-grid">
             <div>
