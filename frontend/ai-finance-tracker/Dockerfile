@@ -3,11 +3,20 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# 👇 IMPORTANT: Accept env from Render
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
+
+# Optional debug (remove later)
+RUN echo "VITE_API_URL=$VITE_API_URL"
+
 RUN npm run build
+
 
 # Step 2: Serve with Nginx
 FROM nginx:alpine
